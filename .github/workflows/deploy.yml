@@ -30,4 +30,5 @@ jobs:
       - name: Run Migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NODE_OPTIONS: "--dns-result-order=ipv4first"
         run: npm run db:migrate
