@@ -43,4 +43,9 @@ app.get('/health', async (req, res) => {
 
 app.listen(PORT, () => {
      console.log(`Server running on port ${PORT}`);
+
+     if (process.env.JWT_SECRET === undefined || process.env.JWT_SECRET === 'super_secret_key_change_me') {
+          console.warn('\x1b[33m%s\x1b[0m', 'WARNING: You are using the default JWT_SECRET. This is insecure for production!');
+          console.warn('\x1b[33m%s\x1b[0m', 'Please set a strong JWT_SECRET in your .env file.');
+     }
 });

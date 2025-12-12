@@ -5,15 +5,43 @@ import { db } from '../config/db';
 import { users, otpCodes } from '../db/schema';
 import { eq, gt, and } from 'drizzle-orm';
 import { sendOtpEmail } from '../config/mail';
+import { z } from 'zod';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_change_me';
 
-export const login = async (req: Request, res: Response) => {
-     const { nim, password } = req.body;
+// Zod Schemas
+const LoginSchema = z.object({
+     nim: z.string().min(1, "NIM is required"),
+     password: z.string().min(1, "Password is required")
+});
 
-     if (!nim || !password) {
-          return res.status(400).json({ message: 'NIM and password are required' });
+const RequestOtpSchema = z.object({
+     email: z.string().email("Invalid email format")
+});
+
+const VerifyOtpSchema = z.object({
+     email: z.string().email("Invalid email format"),
+     otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits")
+});
+
+// Registration schema (for testing/future use)
+const RegisterSchema = z.object({
+     nim: z.string().min(1, "NIM is required"),
+     password: z.string().min(6, "Password must be at least 6 characters"),
+     role: z.enum(['admin', 'voter']).optional()
+});
+
+export const login = async (req: Request, res: Response) => {
+     const validation = LoginSchema.safeParse(req.body);
+
+     if (!validation.success) {
+          return res.status(400).json({
+               message: 'Validation failed',
+               errors: validation.error.issues.map(i => i.message)
+          });
      }
+
+     const { nim, password } = validation.data;
 
      try {
           const userResult = await db.select().from(users).where(eq(users.nim, nim));
@@ -42,8 +70,17 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const register = async (req: Request, res: Response) => {
-     // Basic register for testing purposes
-     const { nim, password, role } = req.body;
+     const validation = RegisterSchema.safeParse(req.body);
+
+     if (!validation.success) {
+          return res.status(400).json({
+               message: 'Validation failed',
+               errors: validation.error.issues.map(i => i.message)
+          });
+     }
+
+     const { nim, password, role } = validation.data;
+
      try {
           const hashedPassword = await bcrypt.hash(password, 10);
           const result = await db.insert(users).values({
@@ -60,11 +97,16 @@ export const register = async (req: Request, res: Response) => {
 }
 
 export const requestOtp = async (req: Request, res: Response) => {
-     const { email } = req.body;
+     const validation = RequestOtpSchema.safeParse(req.body);
 
-     if (!email) {
-          return res.status(400).json({ message: 'Email is required' });
+     if (!validation.success) {
+          return res.status(400).json({
+               message: 'Validation failed',
+               errors: validation.error.issues.map(i => i.message)
+          });
      }
+
+     const { email } = validation.data;
 
      try {
           // Check if user exists with this email
@@ -77,6 +119,36 @@ export const requestOtp = async (req: Request, res: Response) => {
 
           if (user.hasVoted) {
                return res.status(403).json({ message: 'Anda sudah menggunakan hak pilih anda.' });
+          }
+
+          // Rate Limiting Logic
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          const recentOtps = await db.select().from(otpCodes).where(
+               and(
+                    eq(otpCodes.email, email),
+                    gt(otpCodes.createdAt, oneHourAgo)
+               )
+          );
+
+          // 1. Strict Limit Check (Max 3 requests per hour)
+          if (recentOtps.length >= 3) {
+               return res.status(429).json({
+                    message: 'Batasan request OTP tercapai. Silakan hubungi IT Support.'
+               });
+          }
+
+          // 2. Cooldown Check (60 seconds)
+          if (recentOtps.length > 0) {
+               // Get the latest OTP
+               const latestOtp = recentOtps.sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime())[0];
+               const timeDiff = Date.now() - latestOtp.createdAt!.getTime();
+
+               if (timeDiff < 60000) {
+                    const remainingSeconds = Math.ceil((60000 - timeDiff) / 1000);
+                    return res.status(429).json({
+                         message: `Mohon tunggu ${remainingSeconds} detik sebelum mengirim ulang.`
+                    });
+               }
           }
 
           // Generate OTP
@@ -105,11 +177,16 @@ export const requestOtp = async (req: Request, res: Response) => {
 };
 
 export const verifyOtp = async (req: Request, res: Response) => {
-     const { email, otp } = req.body;
+     const validation = VerifyOtpSchema.safeParse(req.body);
 
-     if (!email || !otp) {
-          return res.status(400).json({ message: 'Email and OTP are required' });
+     if (!validation.success) {
+          return res.status(400).json({
+               message: 'Validation failed',
+               errors: validation.error.issues.map(i => i.message)
+          });
      }
+
+     const { email, otp } = validation.data;
 
      try {
           // Find valid OTP
@@ -155,6 +232,33 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
      } catch (error) {
           console.error('Verify OTP error:', error);
+          res.status(500).json({ message: 'Internal server error' });
+     }
+};
+
+export const resetOtpLimit = async (req: Request, res: Response) => {
+     const ResetSchema = z.object({
+          email: z.string().email("Invalid email format")
+     });
+
+     const validation = ResetSchema.safeParse(req.body);
+
+     if (!validation.success) {
+          return res.status(400).json({
+               message: 'Validation failed',
+               errors: validation.error.issues.map(i => i.message)
+          });
+     }
+
+     const { email } = validation.data;
+
+     try {
+          // Delete all OTP history for this email
+          await db.delete(otpCodes).where(eq(otpCodes.email, email));
+
+          res.json({ message: `Limit OTP untuk email ${email} berhasil di-reset. User bisa request OTP lagi.` });
+     } catch (error) {
+          console.error('Reset limit error:', error);
           res.status(500).json({ message: 'Internal server error' });
      }
 };
