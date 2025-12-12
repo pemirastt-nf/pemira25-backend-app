@@ -6,7 +6,6 @@ export const users = pgTable('users', {
      nim: text('nim').unique().notNull(),
      email: text('email').unique(), // Made optional temporarily to avoid migration issues with existing data, or could be notNull if we wipe data. Let's make it unique but nullable for now, or better yet, enforce it.
      name: text('name'),
-     passwordHash: text('password_hash').notNull(),
      role: text('role').notNull().default('voter'), // 'admin', 'voter'
      hasVoted: boolean('has_voted').default(false),
      createdAt: timestamp('created_at').defaultNow(),

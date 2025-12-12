@@ -1,16 +1,15 @@
 
 import { db } from './config/db';
 import { users, candidates } from './db/schema';
-import bcrypt from 'bcrypt';
+
 
 async function seed() {
      console.log('Seeding...');
 
      // Users
-     const hashedPassword = await bcrypt.hash('password', 10);
      await db.insert(users).values([
-          { nim: 'admin', passwordHash: hashedPassword, role: 'admin' },
-          { nim: '12345', passwordHash: hashedPassword, role: 'voter' }
+          { nim: 'admin', role: 'admin' },
+          { nim: '12345', role: 'voter' }
      ]).onConflictDoNothing();
 
      // Candidates

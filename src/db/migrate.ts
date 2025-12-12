@@ -51,9 +51,11 @@ async function main() {
      // Force IPv4
      const finalConnectionString = await resolveHostToIPv4(connectionString);
 
+     const isLocal = finalConnectionString.includes('localhost') || finalConnectionString.includes('127.0.0.1');
+
      const pool = new Pool({
           connectionString: finalConnectionString,
-          ssl: { rejectUnauthorized: false }
+          ssl: isLocal ? false : { rejectUnauthorized: false }
      });
 
      const db = drizzle(pool);
