@@ -17,7 +17,12 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-     origin: ['http://localhost:3000', 'http://10.0.3.111:3000'],
+     origin: [
+          'http://localhost:3000',
+          'http://10.0.3.111:3000',
+          'https://pemira-frondend.vercel.app', // Production Frontend
+          process.env.FRONTEND_URL || ''
+     ].filter(Boolean),
      credentials: true
 }));
 app.use(express.json());
