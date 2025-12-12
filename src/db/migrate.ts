@@ -1,3 +1,9 @@
+import dns from 'dns';
+// Force IPv4 to avoid ENETUNREACH errors in environments with poor IPv6 support (e.g. GitHub Actions)
+if (dns.setDefaultResultOrder) {
+     dns.setDefaultResultOrder('ipv4first');
+}
+
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { db } from '../config/db';
 import pool from '../config/db';
