@@ -20,7 +20,7 @@ app.use(cors({
      origin: [
           'http://localhost:3000',
           'http://10.0.3.111:3000',
-          'https://pemira-frondend.vercel.app', // Production Frontend
+          'https://pemira-sttnf.vercel.app',
           process.env.FRONTEND_URL || ''
      ].filter(Boolean),
      credentials: true
