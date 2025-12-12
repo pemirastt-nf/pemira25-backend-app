@@ -49,3 +49,5 @@ app.listen(PORT, () => {
           console.warn('\x1b[33m%s\x1b[0m', 'Please set a strong JWT_SECRET in your .env file.');
      }
 });
+
+export default app;
