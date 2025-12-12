@@ -27,8 +27,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 🔥 SOLUSI PENTING
+      - name: Force IPv4 only (disable IPv6)
+        run: |
+          sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
+
       - name: Run Migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          NODE_OPTIONS: "--dns-result-order=ipv4first"
+          PGSSLMODE: require
         run: npm run db:migrate
