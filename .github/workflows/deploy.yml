@@ -7,6 +7,7 @@ on:
     paths:
       - "drizzle/**"
       - "src/db/schema.ts"
+  workflow_dispatch:
 
 jobs:
   migrate:
