@@ -15,7 +15,7 @@ export const candidates = pgTable('candidates', {
      id: uuid('id').defaultRandom().primaryKey(),
      name: text('name').notNull(),
      vision: text('vision').notNull(),
-     mission: text('mission').notNull(), 
+     mission: text('mission').notNull(),
      photoUrl: text('photo_url'),
      orderNumber: integer('order_number').unique().notNull(),
      createdAt: timestamp('created_at').defaultNow(),
