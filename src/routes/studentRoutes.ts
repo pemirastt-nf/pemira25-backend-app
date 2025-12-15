@@ -5,6 +5,7 @@ import { eq, ilike, or, isNull } from 'drizzle-orm';
 import { authenticateAdmin, requireSuperAdmin } from '../middleware/adminAuth';
 import { upload } from '../middleware/upload';
 import * as XLSX from 'xlsx';
+import { logAction } from '../utils/actionLogger';
 
 const router = Router();
 
@@ -69,6 +70,8 @@ router.post('/import', upload.single('file'), async (req, res) => {
                errors: errorCount
           });
 
+          await logAction(req, 'IMPORT_STUDENTS', `Total: ${data.length}, Success: ${successCount}, Errors: ${errorCount}`);
+
      } catch (error) {
           console.error('Import error:', error);
           res.status(500).json({ error: 'Failed to process import file' });
@@ -100,6 +103,8 @@ router.post('/', async (req, res) => {
           });
 
           res.status(201).json({ message: 'Mahasiswa berhasil ditambahkan' });
+
+          await logAction(req, 'CREATE_STUDENT', `NIM: ${nim}, Name: ${name}`);
      } catch (error) {
           console.error('Create student error:', error);
           res.status(500).json({ message: 'Gagal menambahkan mahasiswa' });
@@ -178,6 +183,7 @@ router.delete('/:id', requireSuperAdmin, async (req, res) => {
                .where(eq(users.id, id));
 
           res.json({ message: 'Student deleted (soft)' });
+          await logAction(req, 'DELETE_STUDENT', `ID: ${id}`);
      } catch (error) {
           console.error('Delete error', error);
           res.status(500).json({ message: 'Failed to delete student' });
@@ -193,6 +199,7 @@ router.post('/:id/restore', requireSuperAdmin, async (req, res) => {
                .where(eq(users.id, id));
 
           res.json({ message: 'Student restored successfully' });
+          await logAction(req, 'RESTORE_STUDENT', `ID: ${id}`);
      } catch (error) {
           console.error('Restore error', error);
           res.status(500).json({ message: 'Failed to restore student' });
@@ -205,6 +212,7 @@ router.delete('/:id/permanent', requireSuperAdmin, async (req, res) => {
      try {
           await db.delete(users).where(eq(users.id, id));
           res.json({ message: 'Student deleted permanently' });
+          await logAction(req, 'PERMANENT_DELETE_STUDENT', `ID: ${id}`);
      } catch (error) {
           console.error('Permanent delete error', error);
           res.status(500).json({ message: 'Failed to permanently delete student' });

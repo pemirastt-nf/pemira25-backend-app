@@ -39,3 +39,15 @@ export const otpCodes = pgTable('otp_codes', {
      expiresAt: timestamp('expires_at').notNull(),
      createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const actionLogs = pgTable('action_logs', {
+     id: uuid('id').defaultRandom().primaryKey(),
+     actorId: uuid('actor_id'), // Can be null if system action or deleted user
+     actorName: text('actor_name'), // Snapshot of actor name
+     action: text('action').notNull(),
+     target: text('target'),
+     details: text('details'),
+     ipAddress: text('ip_address'),
+     userAgent: text('user_agent'),
+     timestamp: timestamp('timestamp').defaultNow(),
+});

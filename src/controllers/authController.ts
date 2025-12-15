@@ -7,6 +7,7 @@ import { eq, gt, and, or } from 'drizzle-orm';
 import { sendOtpEmail } from '../config/mail';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { logAction } from "../utils/actionLogger";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_change_me';
 
@@ -36,12 +37,15 @@ export const adminLogin = async (req: Request, res: Response) => {
           }
 
           const token = jwt.sign(
-               { id: user.id, email: user.email, role: user.role },
+               { id: user.id, email: user.email, role: user.role, name: user.name },
                JWT_SECRET,
                { expiresIn: '24h' }
           );
 
           // Set HttpOnly Cookie
+          // Log action
+          await logAction(req, 'ADMIN_LOGIN', `Admin: ${user.name}`);
+
           res.cookie('admin_token', token, {
                httpOnly: true,
                secure: true, // Always true for cross-site (None)
@@ -60,7 +64,8 @@ export const adminLogin = async (req: Request, res: Response) => {
      }
 };
 
-export const logout = (req: Request, res: Response) => {
+export const logout = async (req: Request, res: Response) => {
+     await logAction(req, 'ADMIN_LOGOUT');
      res.clearCookie('admin_token');
      res.json({ message: 'Logged out' });
 };
@@ -154,6 +159,7 @@ export const requestOtp = async (req: Request, res: Response) => {
                console.log(`[DEV ONLY] OTP for ${email}: ${otp}`);
           }
 
+          await logAction(req, 'OTP_REQUEST', `Email: ${email}`);
           res.json({ message: 'OTP telah dikirim ke email anda' });
      } catch (error) {
           console.error('Request OTP error:', error);
@@ -200,10 +206,12 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
           // Generate Token
           const token = jwt.sign(
-               { id: user.id, nim: user.nim, role: user.role },
+               { id: user.id, nim: user.nim, role: user.role, name: user.name },
                JWT_SECRET,
                { expiresIn: '1h' }
           );
+
+          await logAction(req, 'VOTE_LOGIN', `Voter: ${user.name} (${user.nim})`);
 
           res.json({
                token,
@@ -286,6 +294,8 @@ export const manualOtpRequest = async (req: Request, res: Response) => {
 
           // Send Email
           const emailSent = await sendOtpEmail(email, otp, user.name || undefined);
+
+          await logAction(req, 'MANUAL_OTP', `Target: ${user.name} (${user.nim})`);
 
           res.json({
                message: `OTP manually triggered for ${user.name} (${email})`,
