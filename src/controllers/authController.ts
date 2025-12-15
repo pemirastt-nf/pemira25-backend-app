@@ -305,9 +305,28 @@ export const manualOtpRequest = async (req: Request, res: Response) => {
 
 export const me = async (req: Request, res: Response) => {
      // Req.user populated by middleware
-     const user = (req as any).user;
-     if (!user) return res.status(401).json({ message: 'Not authenticated' });
-     res.json(user);
+     const userData = (req as any).user;
+     if (!userData) return res.status(401).json({ message: 'Not authenticated' });
+
+     try {
+          const userRes = await db.select().from(users).where(eq(users.id, userData.id));
+          const user = userRes[0];
+
+          if (!user) {
+               return res.status(404).json({ message: 'User not found' });
+          }
+
+          res.json({
+               id: user.id,
+               email: user.email,
+               role: user.role,
+               name: user.name,
+               nim: user.nim
+          });
+     } catch (error) {
+          console.error('Me endpoint error:', error);
+          res.status(500).json({ message: 'Server error' });
+     }
 };
 
 export const seedAdmin = async (req: Request, res: Response) => {

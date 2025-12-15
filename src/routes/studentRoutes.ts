@@ -75,21 +75,55 @@ router.post('/import', upload.single('file'), async (req, res) => {
      }
 });
 
-// Get students (voters)
-router.get('/', async (req, res) => {
-     const { search, page = 1, limit = 50 } = req.query;
-     const offset = (Number(page) - 1) * Number(limit);
+// Create single student
+router.post('/', async (req, res) => {
+     const { nim, name, email } = req.body;
+
+     if (!nim || !name) {
+          return res.status(400).json({ message: 'NIM and Name are required' });
+     }
 
      try {
+          // Check existing
+          const existing = await db.select().from(users).where(eq(users.nim, String(nim)));
+
+          if (existing.length > 0) {
+               return res.status(400).json({ message: 'Mahasiswa dengan NIM tersebut sudah ada (mungkin terhapus/soft deleted).' });
+          }
+
+          await db.insert(users).values({
+               nim: String(nim),
+               name,
+               email: email || null,
+               role: 'voter',
+               hasVoted: false
+          });
+
+          res.status(201).json({ message: 'Mahasiswa berhasil ditambahkan' });
+     } catch (error) {
+          console.error('Create student error:', error);
+          res.status(500).json({ message: 'Gagal menambahkan mahasiswa' });
+     }
+});
+
+// Import students from Excel
+
+// Get students (voters)
+router.get('/', async (req, res) => {
+     try {
+          const { search, page = 1, limit = 50, includeDeleted } = req.query;
+          const offset = (Number(page) - 1) * Number(limit);
+          const shouldIncludeDeleted = includeDeleted === 'true';
+
           // Note: Logic simplified for filtering. 
-          // Ideally fetch only non-deleted
+          // Ideally fetch only non-deleted unless requested
           const allStudents = await db.select().from(users).where(
                eq(users.role, 'voter')
           );
 
           // Manual filtering + Soft Delete Check
           const filtered = allStudents.filter(u =>
-               u.deletedAt === null && // Exclude soft deleted
+               (shouldIncludeDeleted || u.deletedAt === null) && // Exclude soft deleted unless requested
                (
                     !search ||
                     u.name?.toLowerCase().includes(String(search).toLowerCase()) ||
@@ -147,6 +181,33 @@ router.delete('/:id', requireSuperAdmin, async (req, res) => {
      } catch (error) {
           console.error('Delete error', error);
           res.status(500).json({ message: 'Failed to delete student' });
+     }
+});
+
+// Restore Student (Super Admin Only)
+router.post('/:id/restore', requireSuperAdmin, async (req, res) => {
+     const { id } = req.params;
+     try {
+          await db.update(users)
+               .set({ deletedAt: null })
+               .where(eq(users.id, id));
+
+          res.json({ message: 'Student restored successfully' });
+     } catch (error) {
+          console.error('Restore error', error);
+          res.status(500).json({ message: 'Failed to restore student' });
+     }
+});
+
+// Permanent Delete Student (Super Admin Only)
+router.delete('/:id/permanent', requireSuperAdmin, async (req, res) => {
+     const { id } = req.params;
+     try {
+          await db.delete(users).where(eq(users.id, id));
+          res.json({ message: 'Student deleted permanently' });
+     } catch (error) {
+          console.error('Permanent delete error', error);
+          res.status(500).json({ message: 'Failed to permanently delete student' });
      }
 });
 

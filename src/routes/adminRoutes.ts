@@ -7,10 +7,8 @@ import bcrypt from 'bcrypt';
 
 const router = Router();
 
-// Middleware: Require Super Admin for all these routes
 router.use(authenticateAdmin, requireSuperAdmin);
 
-// Get all users (with optional role filter)
 router.get('/users', async (req, res) => {
      try {
           const result = await db.select().from(users);
@@ -21,7 +19,6 @@ router.get('/users', async (req, res) => {
      }
 });
 
-// Update user role (Promote to PANITIA/SUPER_ADMIN or Demote)
 router.patch('/users/:id/role', async (req, res) => {
      const { id } = req.params;
      const { role, password } = req.body; // 'voter', 'panitia', 'super_admin'

@@ -5,9 +5,16 @@ import { asc, eq, inArray, isNull } from 'drizzle-orm';
 
 export const getCandidates = async (req: Request, res: Response) => {
      try {
-          const result = await db.select().from(candidates)
-               .where(isNull(candidates.deletedAt)) // Filter soft-deleted
-               .orderBy(asc(candidates.orderNumber));
+          const { includeDeleted } = req.query;
+          const shouldIncludeDeleted = includeDeleted === 'true';
+
+          let query = db.select().from(candidates).$dynamic();
+
+          if (!shouldIncludeDeleted) {
+               query = query.where(isNull(candidates.deletedAt));
+          }
+
+          const result = await query.orderBy(asc(candidates.orderNumber));
           res.json(result);
      } catch (error) {
           console.error('Error fetching candidates:', error);
@@ -60,5 +67,29 @@ export const deleteCandidate = async (req: Request, res: Response) => {
      } catch (error) {
           console.error('Delete candidate error:', error);
           res.status(500).json({ message: 'Failed to delete candidate' });
+     }
+};
+
+export const restoreCandidate = async (req: Request, res: Response) => {
+     const { id } = req.params;
+     try {
+          await db.update(candidates)
+               .set({ deletedAt: null })
+               .where(eq(candidates.id, id));
+          res.json({ message: 'Candidate restored' });
+     } catch (error) {
+          console.error('Restore candidate error:', error);
+          res.status(500).json({ message: 'Failed to restore candidate' });
+     }
+};
+
+export const permanentDeleteCandidate = async (req: Request, res: Response) => {
+     const { id } = req.params;
+     try {
+          await db.delete(candidates).where(eq(candidates.id, id));
+          res.json({ message: 'Candidate permanently deleted' });
+     } catch (error) {
+          console.error('Permanent delete candidate error:', error);
+          res.status(500).json({ message: 'Failed to permanently delete candidate' });
      }
 };
