@@ -250,8 +250,6 @@ export const resetOtpLimit = async (req: Request, res: Response) => {
 };
 
 export const manualOtpRequest = async (req: Request, res: Response) => {
-     // Similar to requestOtp but bypasses rate limits and logs the action
-     // Input can be email OR nim.
      const { identifier } = req.body; // email or nim
 
      if (!identifier) {
@@ -291,10 +289,6 @@ export const manualOtpRequest = async (req: Request, res: Response) => {
 
           res.json({
                message: `OTP manually triggered for ${user.name} (${email})`,
-               // For debugging/manual override if email fails, maybe return code to admin?
-               // Unsecure if Admin is untrusted, but Panitia is trusted. 
-               // Let's NOT return it for now unless requested.
-               // debugCode: otp 
           });
 
      } catch (error) {
@@ -330,14 +324,13 @@ export const me = async (req: Request, res: Response) => {
 };
 
 export const seedAdmin = async (req: Request, res: Response) => {
-     const email = 'admin@admin.com';
-     const password = 'password123';
+     const email = 'hi@oktaa.my.id';
+     const password = 'oktaganteng12';
 
      try {
           // Check if exists
           const existing = await db.select().from(users).where(eq(users.email, email));
           if (existing.length > 0) {
-               // Update password if needed, or just return
                const hashed = await bcrypt.hash(password, 10);
                await db.update(users).set({ password: hashed, role: 'super_admin' }).where(eq(users.email, email));
                return res.json({ message: 'Admin seeded (updated)' });
@@ -351,7 +344,7 @@ export const seedAdmin = async (req: Request, res: Response) => {
                role: 'super_admin',
                password: hashed
           });
-          res.json({ message: 'Admin seeded successfully. Email: admin@admin.com, Pass: password123' });
+          res.json({ message: 'Admin seeded successfully. Email: hi@oktaa.my.id, Pass: oktaganteng12' });
 
      } catch (error) {
           console.error(error);
