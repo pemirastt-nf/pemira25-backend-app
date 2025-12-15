@@ -358,6 +358,6 @@ export const seedAdmin = async (req: Request, res: Response) => {
 
      } catch (error) {
           console.error(error);
-          res.status(500).json({ message: 'Seed failed' });
+          res.status(500).json({ message: 'Seed failed', error: (error as Error).message, stack: (error as Error).stack });
      }
 };
