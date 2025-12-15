@@ -30,6 +30,7 @@ const PORT = process.env.PORT || 5000;
 app.use((0, cors_1.default)({
     origin: [
         'http://localhost:3000',
+        'http://localhost:3001',
         'http://10.0.3.111:3000',
         'https://pemira-sttnf.vercel.app',
         'https://pemira.nurulfikri.ac.id',
@@ -48,7 +49,7 @@ app.use('/api/candidates', candidateRoutes_1.default);
 // Health check
 app.get('/health', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        yield db_1.db.execute((0, drizzle_orm_1.sql) `SELECT 1`);
+        yield db_1.db.execute((0, drizzle_orm_1.sql)`SELECT 1`);
         res.json({ status: 'ok', timestamp: new Date(), dbStatus: 'ok' });
     }
     catch (error) {

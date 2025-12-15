@@ -129,9 +129,13 @@ export const requestOtp = async (req: Request, res: Response) => {
 
           // 2. Cooldown Check (60 seconds)
           if (recentOtps.length > 0) {
-               // Get the latest OTP
                const latestOtp = recentOtps.sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime())[0];
-               const timeDiff = Date.now() - latestOtp.createdAt!.getTime();
+
+               let timeDiff = Date.now() - latestOtp.createdAt!.getTime();
+               if (timeDiff < 0) {
+                    console.warn(`[OTP] Clock skew detected. OTP time: ${latestOtp.createdAt}, App time: ${new Date()}`);
+                    timeDiff = 0;
+               }
 
                if (timeDiff < 60000) {
                     const remainingSeconds = Math.ceil((60000 - timeDiff) / 1000);
@@ -143,13 +147,14 @@ export const requestOtp = async (req: Request, res: Response) => {
 
           // Generate OTP
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
-          const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+          const now = new Date();
+          const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
 
-          // Save OTP to DB
           await db.insert(otpCodes).values({
                email,
                code: otp,
-               expiresAt
+               expiresAt,
+               createdAt: now
           });
 
           // Send Email
