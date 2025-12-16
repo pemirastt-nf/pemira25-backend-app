@@ -12,14 +12,14 @@ const poolConfig = process.env.DATABASE_URL
           user: process.env.DB_USER || 'postgres',
           host: process.env.DB_HOST || 'localhost',
           database: process.env.DB_NAME || 'pemira_db',
-          password: process.env.DB_PASSWORD || 'postgres',
+          password: process.env.DB_PASSWORD || '15oktober',
           port: parseInt(process.env.DB_PORT || '5432'),
-          max: 20, // Max clients in the pool
-          idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-          connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 2000,
      };
 
 const pool = new Pool(poolConfig);
 
 export const db = drizzle(pool, { schema });
-export default pool; // Keep pool for any raw queries if absolutely needed, but prefer 'db'
+export default pool;

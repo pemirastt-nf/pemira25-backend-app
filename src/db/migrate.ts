@@ -41,7 +41,7 @@ async function main() {
      if (!connectionString) {
           // Fallback or construct from individual env vars if needed
           const user = process.env.DB_USER || 'postgres';
-          const pass = process.env.DB_PASSWORD || 'postgres';
+          const pass = process.env.DB_PASSWORD || '15oktober';
           const host = process.env.DB_HOST || 'localhost';
           const port = process.env.DB_PORT || '5432';
           const dbName = process.env.DB_NAME || 'pemira_db';
