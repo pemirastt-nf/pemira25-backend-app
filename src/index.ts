@@ -60,6 +60,13 @@ app.get('/health', async (req, res) => {
      }
 });
 
+import { initEmailWorker } from './worker/emailWorker';
+
+// ... imports
+
+// Initialize Worker
+initEmailWorker();
+
 app.listen(PORT, () => {
      console.log(`Server running on port ${PORT}`);
 

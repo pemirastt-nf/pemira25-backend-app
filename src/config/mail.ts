@@ -19,6 +19,9 @@ const transporter = nodemailer.createTransport({
         user: smtpUser,
         pass: smtpPassword,
     },
+    pool: true, // Reuse TCP connections to avoid handshake overhead
+    maxConnections: 5, // Limit concurrent connections to avoid SMTP rate limits
+    maxMessages: 100,
 });
 
 export const sendOtpEmail = async (email: string, otp: string, name?: string) => {

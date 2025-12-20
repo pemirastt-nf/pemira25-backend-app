@@ -14,9 +14,9 @@ const poolConfig = process.env.DATABASE_URL
           database: process.env.DB_NAME || 'pemira_db',
           password: process.env.DB_PASSWORD || '15oktober',
           port: parseInt(process.env.DB_PORT || '5432'),
-          max: 20,
+          max: parseInt(process.env.DB_POOL_MAX || '50'), // Increased from 20 for scalability
           idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 2000,
+          connectionTimeoutMillis: 5000, // Increased timeout to avoid failures under load
      };
 
 const pool = new Pool(poolConfig);

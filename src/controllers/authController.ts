@@ -5,6 +5,8 @@ import { db } from '../config/db';
 import { users, otpCodes } from '../db/schema';
 import { eq, gt, and, or } from 'drizzle-orm';
 import { sendOtpEmail } from '../config/mail';
+import { addOtpEmailJob } from '../queue/emailQueue';
+import { checkRateLimit } from '../utils/rateLimiter';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { logAction } from "../utils/actionLogger";
@@ -111,38 +113,24 @@ export const requestOtp = async (req: Request, res: Response) => {
                return res.status(403).json({ message: 'Anda sudah menggunakan hak pilih anda.' });
           }
 
-          // Rate Limiting Logic
-          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-          const recentOtps = await db.select().from(otpCodes).where(
-               and(
-                    eq(otpCodes.email, email),
-                    gt(otpCodes.createdAt, oneHourAgo)
-               )
-          );
+          // Redis Rate Limiting (Max 3 requests per hour)
+          const limitKey = `otp_limit:${email}`;
+          const limitCheck = await checkRateLimit(limitKey, 3, 3600);
 
-          // 1. Strict Limit Check (Max 3 requests per hour)
-          if (recentOtps.length >= 3) {
+          if (!limitCheck.allowed) {
                return res.status(429).json({
                     message: 'Batasan request OTP tercapai. Silakan hubungi IT Support.'
                });
           }
 
-          // 2. Cooldown Check (60 seconds)
-          if (recentOtps.length > 0) {
-               const latestOtp = recentOtps.sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime())[0];
+          // Redis Cooldown (1 request per 60 seconds)
+          const cooldownKey = `otp_cooldown:${email}`;
+          const cooldownCheck = await checkRateLimit(cooldownKey, 1, 60);
 
-               let timeDiff = Date.now() - latestOtp.createdAt!.getTime();
-               if (timeDiff < 0) {
-                    console.warn(`[OTP] Clock skew detected. OTP time: ${latestOtp.createdAt}, App time: ${new Date()}`);
-                    timeDiff = 0;
-               }
-
-               if (timeDiff < 60000) {
-                    const remainingSeconds = Math.ceil((60000 - timeDiff) / 1000);
-                    return res.status(429).json({
-                         message: `Mohon tunggu ${remainingSeconds} detik sebelum mengirim ulang.`
-                    });
-               }
+          if (!cooldownCheck.allowed) {
+               return res.status(429).json({
+                    message: `Mohon tunggu ${cooldownCheck.ttl} detik sebelum mengirim ulang.`
+               });
           }
 
           // Generate OTP
@@ -157,12 +145,12 @@ export const requestOtp = async (req: Request, res: Response) => {
                createdAt: now
           });
 
-          // Send Email
-          const emailSent = await sendOtpEmail(email, otp, user.name || undefined);
+          // Send Email Async via Queue
+          await addOtpEmailJob(email, otp, user.name || undefined);
 
-          if (!emailSent) {
-               console.log(`[DEV ONLY] OTP for ${email}: ${otp}`);
-          }
+          // if (!emailSent) {
+          //      console.log(`[DEV ONLY] OTP for ${email}: ${otp}`);
+          // }
 
           await logAction(req, 'OTP_REQUEST', `Email: ${email}`);
           res.json({ message: 'OTP telah dikirim ke email anda' });
