@@ -48,7 +48,7 @@ export const sendOtpEmail = async (email: string, otp: string, name?: string) =>
                                         <td style="background: linear-gradient(135deg, #0248a3 0%, #00337d 100%); padding: 40px 20px; text-align: center;">
                                             <div style="display: inline-block; background-color: white; padding: 12px; border-radius: 12px; margin-bottom: 16px;">
                                                 <!-- Using placeholder if no public URL available yet. Ideally this is a hosted image -->
-                                                <img src="https://pemira.nurulfikri.ac.id/pemira-logo.png" alt="PEMIRA Logo" style="width: 48px; height: 48px; object-fit: contain; display: block;" onerror="this.style.display='none'">
+                                                <img src="https://cdn.oktaa.my.id/pemira-logo-text.svg" alt="PEMIRA Logo" style="width: 48px; height: 48px; object-fit: contain; display: block;" onerror="this.style.display='none'">
                                             </div>
                                             <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 0.5px;">PEMIRA STTNF</h1>
                                         </td>
