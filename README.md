@@ -59,6 +59,8 @@ Ensure you have the following installed:
    DB_NAME=pemira_db
 
    # Redis (Required for BullMQ/Emails)
+   REDIS_URL=redis://localhost:6379
+   # OR
    REDIS_HOST=localhost
    REDIS_PORT=6379
 
