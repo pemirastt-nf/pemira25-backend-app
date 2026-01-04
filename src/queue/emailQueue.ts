@@ -25,3 +25,20 @@ export const addOtpEmailJob = async (email: string, otp: string, name?: string) 
           removeOnFail: 1000, // Keep last 1000 failed jobs for inspection
      });
 };
+// Helper to add Broadcast email job
+export const addBroadcastJob = async (email: string, subject: string, template: string, data: Record<string, string>) => {
+     await emailQueue.add('send-broadcast', {
+          email,
+          subject,
+          template,
+          data,
+     }, {
+          attempts: 3,
+          backoff: {
+               type: 'exponential',
+               delay: 1000,
+          },
+          removeOnComplete: true,
+          removeOnFail: 5000, // Keep failed jobs for debugging
+     });
+};

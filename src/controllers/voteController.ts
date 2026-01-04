@@ -131,7 +131,8 @@ export const getResults = async (req: Request, res: Response) => {
 }
 
 export const manualVote = async (req: Request, res: Response) => {
-     const { candidateId } = req.body;
+     const { candidateId, count } = req.body;
+     const voteCount = Math.max(1, parseInt(count) || 1);
 
      // NO NIM required for offline tally (per user request).
      // This function is purely for "Ballot Box Stuffing" (Tallying paper votes).
@@ -142,15 +143,17 @@ export const manualVote = async (req: Request, res: Response) => {
      }
 
      try {
-          await db.insert(votes).values({
+          const values = Array(voteCount).fill({
                candidateId: candidateId,
                source: 'offline'
           });
 
+          await db.insert(votes).values(values);
+
           cache.del("stats");
           cache.del("results");
 
-          res.json({ message: `Offline vote tallied` });
+          res.json({ message: `${voteCount} Offline vote(s) tallied` });
      } catch (error: any) {
           console.error('Manual Vote Error:', error);
           res.status(500).json({ message: 'Error recording offline vote' });
