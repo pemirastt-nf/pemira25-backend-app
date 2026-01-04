@@ -3,8 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import cookieParser from 'cookie-parser';
-import { createAdapter } from '@socket.io/redis-adapter'; // Ensure import
-import { redisConnection } from './config/redis'; // Ensure import
+
 import { configureSecurity } from './middleware/security';
 import authRoutes from './routes/authRoutes';
 import voteRoutes from './routes/voteRoutes';
@@ -83,10 +82,7 @@ import { initEmailWorker } from './worker/emailWorker';
 // ... imports
 
 // Initialize Worker
-initEmailWorker();
 
-// Initialize Worker
-initEmailWorker();
 
 // --- Socket.IO Setup ---
 import { createAdapter } from '@socket.io/redis-adapter';
