@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import cookieParser from 'cookie-parser';
+import { createAdapter } from '@socket.io/redis-adapter'; // Ensure import
+import { redisConnection } from './config/redis'; // Ensure import
 import { configureSecurity } from './middleware/security';
 import authRoutes from './routes/authRoutes';
 import voteRoutes from './routes/voteRoutes';
@@ -87,7 +89,15 @@ initEmailWorker();
 initEmailWorker();
 
 // --- Socket.IO Setup ---
+import { createAdapter } from '@socket.io/redis-adapter';
+import { redisConnection } from './config/redis';
+
+// Duplicate connection for pub/sub as required by adapter
+const pubClient = redisConnection.duplicate();
+const subClient = redisConnection.duplicate();
+
 const io = new Server(server, {
+     adapter: createAdapter(pubClient, subClient),
      cors: {
           origin: [
                'http://localhost:3000',
@@ -100,8 +110,10 @@ const io = new Server(server, {
                'https://admin-pemira-pi.vercel.app',
                process.env.FRONTEND_URL || ''
           ].filter(Boolean),
-          credentials: true
-     }
+          credentials: true,
+          methods: ["GET", "POST"]
+     },
+     transports: ['polling', 'websocket']
 });
 
 app.set('io', io); // Share IO instance
