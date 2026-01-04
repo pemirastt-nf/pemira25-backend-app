@@ -21,6 +21,7 @@ export const candidates = pgTable('candidates', {
      mission: text('mission').notNull(),
      photoUrl: text('photo_url'),
      orderNumber: integer('order_number').unique().notNull(),
+     programs: text('programs'), // New line-separated programs
      createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
      deletedAt: timestamp('deleted_at', { withTimezone: true }), // Soft Delete
 });

@@ -34,13 +34,14 @@ export const getCandidates = async (req: Request, res: Response) => {
 };
 
 export const createCandidate = async (req: Request, res: Response) => {
-     const { name, vision, mission, orderNumber, photoUrl } = req.body;
+     const { name, vision, mission, programs, orderNumber, photoUrl } = req.body;
 
      try {
           await db.insert(candidates).values({
                name,
                vision,
                mission,
+               programs,
                orderNumber: Number(orderNumber),
                photoUrl
           });
@@ -55,11 +56,11 @@ export const createCandidate = async (req: Request, res: Response) => {
 
 export const updateCandidate = async (req: Request, res: Response) => {
      const { id } = req.params;
-     const { name, vision, mission, orderNumber, photoUrl } = req.body;
+     const { name, vision, mission, programs, orderNumber, photoUrl } = req.body;
 
      try {
           await db.update(candidates)
-               .set({ name, vision, mission, orderNumber: Number(orderNumber), photoUrl })
+               .set({ name, vision, mission, programs, orderNumber: Number(orderNumber), photoUrl })
                .where(eq(candidates.id, id));
           res.json({ message: 'Candidate updated successfully' });
           await logAction(req, 'UPDATE_CANDIDATE', `ID: ${id}, Name: ${name}`);
