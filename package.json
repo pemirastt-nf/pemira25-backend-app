@@ -12,7 +12,7 @@
           "db:push": "drizzle-kit push:pg"
      },
      "keywords": [],
-     "author": "",
+     "author": "oktaamyid",
      "license": "ISC",
      "dependencies": {
           "@socket.io/redis-adapter": "^8.3.0",
