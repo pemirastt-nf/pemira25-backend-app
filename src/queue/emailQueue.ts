@@ -39,11 +39,13 @@ export const addOtpEmailJob = async (email: string, otp: string, name?: string) 
 };
 
 // Helper to add Broadcast email job
-export const addBroadcastJob = async (email: string, subject: string, template: string, data: Record<string, string>) => {
+export const addBroadcastJob = async (email: string, subject: string, template: string, data: Record<string, string>, cta_text?: string, cta_url?: string) => {
      await broadcastQueue.add('send-broadcast', {
           email,
           subject,
           template,
           data,
+          cta_text,
+          cta_url,
      });
 };

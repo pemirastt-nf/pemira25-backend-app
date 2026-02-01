@@ -121,7 +121,7 @@ export const broadcasts = pgTable('broadcasts', {
      id: uuid('id').defaultRandom().primaryKey(),
      subject: text('subject').notNull(),
      content: text('content').notNull(), // HTML content
-     filters: jsonb('filters').default({ target: 'all' }), // { target: 'all'|'batch'|'unvoted', batches: [] }
+     filters: jsonb('filters').default({ target: 'all' }), // { target: 'all'|'batch'|'unvoted', batches: [], cta: { text: '', url: '' } }
      status: text('status', { enum: ['draft', 'processing', 'completed', 'failed'] }).default('draft').notNull(),
      stats: jsonb('stats').default({ total: 0, sent: 0, failed: 0 }),
      createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

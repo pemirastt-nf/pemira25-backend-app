@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
 import redisConfig from '../config/redis';
-import { sendOtpEmail, sendEmail, wrapEmailBody } from '../config/mail';
+import { sendOtpEmail, sendEmail, wrapEmailBody, getButtonHtml } from '../config/mail';
 import { OTP_QUEUE_NAME, BROADCAST_QUEUE_NAME } from '../queue/emailQueue';
 
 export const initEmailWorker = () => {
@@ -28,7 +28,7 @@ export const initEmailWorker = () => {
      // Broadcast Worker: Slow, Rate Limited
      const broadcastWorker = new Worker(BROADCAST_QUEUE_NAME, async (job) => {
           if (job.name === 'send-broadcast') {
-               const { email, subject, template, data } = job.data;
+               const { email, subject, template, data, cta_text, cta_url } = job.data;
                console.log(`[Broadcast-Worker] Processing Broadcast email for ${email}`);
 
                // Simple template replacement
@@ -37,6 +37,14 @@ export const initEmailWorker = () => {
                     const regex = new RegExp(`{{${key}}}`, 'g');
                     content = content.replace(regex, data[key]);
                });
+
+               // Inject CTA Button (Parameterized)
+               // Pattern: {{cta_button|TEXT|URL}}
+               const ctaRegex = /{{cta_button\|(.*?)\|(.*?)}}/g;
+               content = content.replace(ctaRegex, (_: string, text: string, url: string) => getButtonHtml(text, url));
+
+               // Legacy fallback for plain {{cta_button}} if we want to support it (optional)
+               // For now, let's keep it strict to parameterized only as per plan.
 
                // Wrapper for styling consistency
                const htmlContent = wrapEmailBody(content);

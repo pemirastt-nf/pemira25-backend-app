@@ -5,7 +5,7 @@ import { eq, inArray, and, isNull, desc } from 'drizzle-orm';
 import { authenticateAdmin } from '../middleware/adminAuth';
 import { addBroadcastJob } from '../queue/emailQueue';
 import { logAction } from '../utils/actionLogger';
-import { formatEmailHtml, wrapEmailBody } from '../config/mail';
+import { formatEmailHtml, wrapEmailBody, getButtonHtml } from '../config/mail';
 
 const router = Router();
 
@@ -36,12 +36,16 @@ router.use(authenticateAdmin);
  *                 type: string
  *               nim:
  *                 type: string
+ *               cta_text:
+ *                 type: string
+ *               cta_url:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Preview HTML
  */
 router.post('/preview', async (req, res) => {
-     const { template, nim } = req.body;
+     const { template, nim, cta_text, cta_url } = req.body;
 
      if (!template) {
           return res.status(400).json({ message: 'Template is required' });
@@ -72,7 +76,16 @@ router.post('/preview', async (req, res) => {
                preview = preview.replace(regex, data[key]);
           });
 
-          // Apply same formatting as email sender
+          // CTA Logic (Parameterized)
+          // Pattern: {{cta_button|TEXT|URL}}
+          const ctaRegex = /{{cta_button\|(.*?)\|(.*?)}}/g;
+          preview = preview.replace(ctaRegex, (_: string, text: string, url: string) => getButtonHtml(text, url));
+
+          // Legacy Fallback (if user still has {{cta_button}} in content but no params, ignore it or handle?)
+          // For now, let's just support the new format strictly as agreed.
+          // If we want to support global CTA again, we'd need that data back.
+          // Assuming cleanup phase removes global CTA logic completely.
+
           // Apply same formatting as email sender
           // Use CID=false for preview so browser can load image from URL
           preview = wrapEmailBody(preview, false);
@@ -81,6 +94,43 @@ router.post('/preview', async (req, res) => {
      } catch (error) {
           console.error('Preview error:', error);
           res.status(500).json({ message: 'Failed to generate preview' });
+     }
+});
+
+/**
+ * @swagger
+ * /api/broadcast/send:
+ *   // ... (existing swagger)
+ */
+// ... (existing batches, list, detail, draft, update, delete endpoints)
+
+// ...
+
+// --- TEST SEND (To Admin) ---
+router.post('/test-send', async (req, res) => {
+     const { subject, template, email, cta_text, cta_url } = req.body;
+     if (!email || !subject || !template) return res.status(400).json({ message: 'Missing required fields' });
+
+     try {
+          let content = template.replace('{{name}}', 'Admin (Test)').replace('{{nim}}', '00000').replace('{{email}}', email);
+
+          // CTA Logic (Parameterized)
+          const ctaRegex = /{{cta_button\|(.*?)\|(.*?)}}/g;
+          content = content.replace(ctaRegex, (_: string, text: string, url: string) => getButtonHtml(text, url));
+
+          const html = wrapEmailBody(content);
+
+          // Import sendEmail dynamically or use top-level if available
+          const { sendEmail } = await import('../config/mail');
+
+          const success = await sendEmail(email, `[TEST] ${subject}`, html);
+
+          if (success) res.json({ message: 'Test email sent' });
+          else res.status(500).json({ message: 'Failed to send test email' });
+
+     } catch (error) {
+          console.error('Test send error:', error);
+          res.status(500).json({ message: 'Failed to send test email' });
      }
 });
 
@@ -153,12 +203,17 @@ router.get('/:id', async (req, res) => {
 
 // --- CREATE DRAFT ---
 router.post('/draft', async (req, res) => {
-     const { subject, template, filters } = req.body;
+     const { subject, template, filters, cta_text, cta_url } = req.body;
      try {
+          const filtersWithCta = {
+               ...(filters || { target: 'all' }),
+               cta: { text: cta_text || '', url: cta_url || '' }
+          };
+
           const result = await db.insert(broadcasts).values({
                subject: subject || 'Untitled Draft',
                content: template || '',
-               filters: filters || { target: 'all' },
+               filters: filtersWithCta,
                status: 'draft',
                createdBy: (req as any).user?.id // Assuming adminAuth populates req.user
           }).returning();
@@ -171,7 +226,7 @@ router.post('/draft', async (req, res) => {
 
 // --- UPDATE DRAFT ---
 router.put('/:id', async (req, res) => {
-     const { subject, template, filters } = req.body;
+     const { subject, template, filters, cta_text, cta_url } = req.body;
      try {
           const [existing] = await db.select().from(broadcasts).where(eq(broadcasts.id, req.params.id));
           if (!existing) return res.status(404).json({ message: 'Broadcast not found' });
@@ -180,10 +235,15 @@ router.put('/:id', async (req, res) => {
                return res.status(400).json({ message: 'Only drafts can be edited' });
           }
 
+          const filtersWithCta = {
+               ...(filters || existing.filters || { target: 'all' }),
+               cta: { text: cta_text || '', url: cta_url || '' }
+          };
+
           const result = await db.update(broadcasts).set({
                subject,
                content: template,
-               filters,
+               filters: filtersWithCta,
                updatedAt: new Date(),
           }).where(eq(broadcasts.id, req.params.id)).returning();
 
@@ -216,7 +276,8 @@ router.post('/:id/publish', async (req, res) => {
           }
 
           const { subject, content, filters } = broadcast;
-          const filterData = filters as { target: string; batches?: string[] } || { target: 'all' };
+          const filterData = filters as { target: string; batches?: string[]; cta?: { text: string; url: string } } || { target: 'all' };
+          const ctaData = filterData.cta || { text: '', url: '' };
 
           // Determine Targets
           let query = db.select().from(users).where(and(eq(users.role, 'voter'), isNull(users.deletedAt)));
@@ -250,7 +311,7 @@ router.post('/:id/publish', async (req, res) => {
                     name: user.name || 'Mahasiswa',
                     nim: user.nim,
                     email: user.email
-               });
+               }, ctaData.text, ctaData.url);
                queuedCount++;
           }
 
