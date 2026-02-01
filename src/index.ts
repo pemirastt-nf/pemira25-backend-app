@@ -32,17 +32,29 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors({
-     origin: [
-          'http://localhost:3000',
-          'http://localhost:3001',
-          'http://localhost:3002',
-          'http://10.0.3.111:3000',
-          'https://pemira-sttnf.vercel.app',
-          'https://pemira.nurulfikri.ac.id',
-          'https://pemira.oktaa.my.id',
-          'https://admin-pemira-pi.vercel.app',
-          process.env.FRONTEND_URL || ''
-     ].filter(Boolean),
+     origin: (origin, callback) => {
+          // Allow requests with no origin (like mobile apps or curl requests)
+          if (!origin) return callback(null, true);
+
+          const allowedOrigins = [
+               'https://pemira.nurulfikri.ac.id',
+               'https://admin-pemira-pi.vercel.app',
+          ];
+
+          // Dynamic checks
+          const isAllowed =
+               allowedOrigins.includes(origin) ||
+               /^http:\/\/localhost:\d+$/.test(origin) || // Allow any localhost port
+               /^http:\/\/10\.0\.3\.\d+:\d+$/.test(origin) || // Allow local IP network
+               /^https:\/\/.*\.vercel\.app$/.test(origin) || // Allow any Vercel app
+               /^https:\/\/.*\.oktaa\.my\.id$/.test(origin); // Allow any oktaa.my.id subdomain
+
+          if (isAllowed) {
+               callback(null, true);
+          } else {
+               callback(new Error('Not allowed by CORS'));
+          }
+     },
      credentials: true
 }));
 app.use(express.json());
@@ -97,17 +109,27 @@ const subClient = redisConnection.duplicate();
 const io = new Server(server, {
      adapter: createAdapter(pubClient, subClient),
      cors: {
-          origin: [
-               'http://localhost:3000',
-               'http://localhost:3001',
-               'http://localhost:3002',
-               'http://10.0.3.111:3000',
-               'https://pemira-sttnf.vercel.app',
-               'https://pemira.nurulfikri.ac.id',
-               'https://pemira.oktaa.my.id',
-               'https://admin-pemira-pi.vercel.app',
-               process.env.FRONTEND_URL || ''
-          ].filter(Boolean),
+          origin: (origin, callback) => {
+               if (!origin) return callback(null, true);
+
+               const allowedOrigins = [
+                    'https://pemira.nurulfikri.ac.id',
+                    'https://admin-pemira-pi.vercel.app',
+               ];
+
+               const isAllowed =
+                    allowedOrigins.includes(origin) ||
+                    /^http:\/\/localhost:\d+$/.test(origin) ||
+                    /^http:\/\/10\.0\.3\.\d+:\d+$/.test(origin) ||
+                    /^https:\/\/.*\.vercel\.app$/.test(origin) ||
+                    /^https:\/\/.*\.oktaa\.my\.id$/.test(origin);
+
+               if (isAllowed) {
+                    callback(null, true);
+               } else {
+                    callback(new Error('Not allowed by CORS'));
+               }
+          },
           credentials: true,
           methods: ["GET", "POST"]
      },
