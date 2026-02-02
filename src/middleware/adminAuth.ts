@@ -36,10 +36,37 @@ export const authenticateAdmin = (req: AdminAuthRequest, res: Response, next: Ne
      });
 };
 
+
 export const requireSuperAdmin = (req: AdminAuthRequest, res: Response, next: NextFunction) => {
      const role = req.user?.role;
      if (role !== 'super_admin') {
           return res.status(403).json({ error: 'Forbidden: Requires Super Admin' });
      }
      next();
+};
+
+// RBAC Middleware
+export const requireOperatorTPS = (req: AdminAuthRequest, res: Response, next: NextFunction) => {
+     const role = req.user?.role;
+     // Allow Super Admin, Panitia, or specific Operator TPS
+     if (role === 'super_admin' || role === 'panitia' || role === 'operator_tps') {
+          return next();
+     }
+     return res.status(403).json({ error: 'Forbidden: Requires Operator TPS Access' });
+};
+
+export const requireOperatorSuara = (req: AdminAuthRequest, res: Response, next: NextFunction) => {
+     const role = req.user?.role;
+     if (role === 'super_admin' || role === 'panitia' || role === 'operator_suara') {
+          return next();
+     }
+     return res.status(403).json({ error: 'Forbidden: Requires Operator Suara Access' });
+};
+
+export const requireOperatorChat = (req: AdminAuthRequest, res: Response, next: NextFunction) => {
+     const role = req.user?.role;
+     if (role === 'super_admin' || role === 'panitia' || role === 'operator_chat') {
+          return next();
+     }
+     return res.status(403).json({ error: 'Forbidden: Requires Operator Chat Access' });
 };

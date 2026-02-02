@@ -1,8 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { db } from '../config/db';
 import { users } from '../db/schema';
-import { eq, ilike, isNull, and } from 'drizzle-orm';
-import { authenticateAdmin, requireSuperAdmin } from '../middleware/adminAuth';
+import { eq, or, desc, sql, inArray, ilike, and, isNull } from 'drizzle-orm';
+import { authenticateToken } from '../middleware/authMiddleware';
+import { authenticateAdmin, requireSuperAdmin, requireOperatorTPS } from '../middleware/adminAuth';
+import multer from 'multer';
 import { upload } from '../middleware/upload';
 import * as XLSX from 'xlsx';
 import { logAction } from '../utils/actionLogger';
@@ -49,22 +51,19 @@ router.use(authenticateAdmin);
  *       200:
  *         description: Students imported
  */
-router.post('/import', upload.single('file'), async (req, res) => {
+router.post('/import', upload.single('file'), async (req: Request, res: Response) => {
      try {
           let data: any[] = [];
 
-          // 1. Check if data is sent as JSON body (Frontend currently does this)
           if (req.body.students && Array.isArray(req.body.students)) {
                data = req.body.students;
           }
-          // 2. Fallback: Parse file if uploaded (Legacy support)
           else if (req.file) {
                const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
                const sheetName = workbook.SheetNames[0];
                const sheet = workbook.Sheets[sheetName];
                data = XLSX.utils.sheet_to_json(sheet);
           }
-          // 3. Error if neither
           else {
                return res.status(400).json({ error: 'No data provided. Please upload a file or send JSON data.' });
           }
@@ -75,15 +74,12 @@ router.post('/import', upload.single('file'), async (req, res) => {
 
 
 
-          // Process the data (Filtering & Insertion)
           for (const row of data) {
-               // Normalize keys (handle formatting issues)
                const rawNim = row['NIM'] || row['nim'] || row['Nim'];
-               const rawName = row['Name'] || row['name'] || row['Nama'] || row['nama']; // Added 'Nama' support
+               const rawName = row['Name'] || row['name'] || row['Nama'] || row['nama'];
                const rawEmail = row['Email'] || row['email'];
                const rawBatch = row['Batch'] || row['batch'] || row['Angkatan'] || row['angkatan'];
 
-               // Filter: Skip invalid rows
                if (!rawNim || !rawName) {
                     errorCount++;
                     continue;
@@ -94,48 +90,43 @@ router.post('/import', upload.single('file'), async (req, res) => {
                const normalizedBatch = rawBatch ? String(rawBatch).trim() : null;
                const normalizedEmail = rawEmail ? String(rawEmail).trim().toLowerCase() : null;
 
+               const batchConfig = req.body.batchConfig || {};
+               let accessType = 'online';
+
+               if (normalizedBatch && batchConfig[normalizedBatch]) {
+                    accessType = batchConfig[normalizedBatch];
+               }
+
                try {
-                    // Strategy 1: Find by NIM (Primary)
                     const existingByNim = await db.select().from(users).where(eq(users.nim, normalizedNim));
 
                     if (existingByNim.length > 0) {
-                         // FOUND by NIM -> Update details
                          await db.update(users).set({
                               name: normalizedName,
                               email: normalizedEmail || existingByNim[0].email,
                               batch: normalizedBatch || existingByNim[0].batch,
-                              deletedAt: null // Restore if re-importing a soft deleted user
+                              accessType: accessType,
+                              deletedAt: null
                          }).where(eq(users.nim, normalizedNim));
                     } else {
-                         // NOT FOUND by NIM -> Strategy 2: Find by Name (Secondary - for NIM updates)
-                         // Check strictly case-insensitive
                          const existingByName = await db.select().from(users).where(ilike(users.name, normalizedName));
 
                          let shouldCreateNew = true;
 
-                         // Logic Update NIM via Name Match
                          if (existingByName.length === 1) {
-                              // Found EXACTLY ONE person with this name
                               const targetUser = existingByName[0];
-
-                              // Safety Check: Is it a single word name? (e.g. "Budi")
-                              // Single word names are dangerous to assume identity.
                               const nameParts = normalizedName.split(' ');
                               if (nameParts.length > 1) {
-                                   // Multi-word name -> Safe to assume it's the same person updating their NIM
-                                   // ACTION: Update NIM
                                    await db.update(users).set({
-                                        nim: normalizedNim, // NEW NIM
+                                        nim: normalizedNim,
                                         email: normalizedEmail || targetUser.email,
                                         batch: normalizedBatch || targetUser.batch,
                                         deletedAt: null
                                    }).where(eq(users.id, targetUser.id));
 
-                                   shouldCreateNew = false; // Handled as update
+                                   shouldCreateNew = false;
                               }
-                              // Else: Single word name -> Too ambiguous. Fallback to Create New.
                          }
-                         // Else: Found 0 or >1 people -> Too ambiguous. Fallback to Create New.
 
                          if (shouldCreateNew) {
                               await db.insert(users).values({
@@ -144,6 +135,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
                                    email: normalizedEmail || null,
                                    batch: normalizedBatch,
                                    role: 'voter',
+                                   accessType: accessType,
                                    hasVoted: false
                               });
                          }
@@ -202,7 +194,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
  *       400:
  *         description: Invalid input or student already exists
  */
-router.post('/', async (req, res) => {
+router.post('/', async (req: Request, res: Response) => {
      const { nim, name, email } = req.body;
 
      if (!nim || !name) {
@@ -263,7 +255,7 @@ router.post('/', async (req, res) => {
  *       200:
  *         description: List of students
  */
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response) => {
      try {
           const { search, page = 1, limit = 50, includeDeleted } = req.query;
           const offset = (Number(page) - 1) * Number(limit);
@@ -278,7 +270,7 @@ router.get('/', async (req, res) => {
           );
 
           // Manual filtering for Search
-          const filtered = allStudents.filter(u =>
+          const filtered = allStudents.filter((u: typeof users.$inferSelect) =>
           (
                !search ||
                u.name?.toLowerCase().includes(String(search).toLowerCase()) ||
@@ -337,7 +329,7 @@ router.get('/', async (req, res) => {
  *       404:
  *         description: Student not found
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req: Request, res: Response) => {
      const { id } = req.params;
      const { nim, name, email, batch } = req.body;
 
@@ -361,12 +353,13 @@ router.put('/:id', async (req, res) => {
                     nim: nim || existing[0].nim,
                     name: name || existing[0].name,
                     email: email !== undefined ? email : existing[0].email, // Allow clearing email if sent as null/empty
-                    batch: batch !== undefined ? batch : existing[0].batch
+                    batch: batch !== undefined ? batch : existing[0].batch,
+                    accessType: req.body.accessType || existing[0].accessType // Allow manual edit of Access Type
                })
                .where(eq(users.id, id));
 
           res.json({ message: 'Data mahasiswa berhasil diperbarui' });
-          await logAction(req, 'UPDATE_STUDENT', `ID: ${id}, Updates: ${JSON.stringify({ nim, name, email, batch })}`);
+          await logAction(req, 'UPDATE_STUDENT', `ID: ${id}, Updates: ${JSON.stringify({ nim, name, email, batch, accessType: req.body.accessType })}`);
 
      } catch (error) {
           console.error('Update student error:', error);
@@ -375,30 +368,12 @@ router.put('/:id', async (req, res) => {
 });
 
 // Mark student as attended
-router.post('/mark-attendance', async (req, res) => {
-     const { nim } = req.body;
-     if (!nim) return res.status(400).json({ message: 'NIM is required' });
-
-     try {
-          const userRes = await db.select().from(users).where(eq(users.nim, String(nim)));
-          if (userRes.length === 0) return res.status(404).json({ message: 'Student not found' });
-
-          const user = userRes[0];
-          if (user.hasVoted) return res.status(400).json({ message: 'Student is already marked as voted' });
-          if (user.deletedAt) return res.status(400).json({ message: 'Student is deleted' });
-
-          await db.update(users)
-               .set({ hasVoted: true, votedAt: new Date() })
-               .where(eq(users.id, user.id));
-
-          res.json({ message: `Student ${nim} marked as present/voted` });
-     } catch (error) {
-          res.status(500).json({ message: 'Failed to mark attendance' });
-     }
+router.post('/mark-attendance', authenticateAdmin, requireOperatorTPS, async (req: Request, res: Response) => {
+     res.status(410).json({ message: "Deprecated. Use /votes/checkin" });
 });
 
 // Soft Delete Student (Super Admin Only)
-router.delete('/:id', requireSuperAdmin, async (req, res) => {
+router.delete('/:id', authenticateAdmin, requireSuperAdmin, async (req: Request, res: Response) => {
      const { id } = req.params;
      try {
           await db.update(users)
@@ -414,7 +389,7 @@ router.delete('/:id', requireSuperAdmin, async (req, res) => {
 });
 
 // Restore Student (Super Admin Only)
-router.post('/:id/restore', requireSuperAdmin, async (req, res) => {
+router.post('/:id/restore', requireSuperAdmin, async (req: Request, res: Response) => {
      const { id } = req.params;
      try {
           await db.update(users)
@@ -430,7 +405,7 @@ router.post('/:id/restore', requireSuperAdmin, async (req, res) => {
 });
 
 // Permanent Delete Student (Super Admin Only)
-router.delete('/:id/permanent', requireSuperAdmin, async (req, res) => {
+router.delete('/:id/permanent', requireSuperAdmin, async (req: Request, res: Response) => {
      const { id } = req.params;
      try {
           await db.delete(users).where(eq(users.id, id));

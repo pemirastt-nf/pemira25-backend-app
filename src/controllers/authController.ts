@@ -24,7 +24,6 @@ export const adminLogin = async (req: Request, res: Response) => {
           const userRes = await db.select().from(users).where(and(eq(users.email, email), isNull(users.deletedAt)));
           const user = userRes[0];
 
-          // Check if user exists and is authorized (not a voter)
           if (!user || user.role === 'voter') {
                return res.status(401).json({ message: 'Invalid credentials or access denied' });
           }
@@ -44,8 +43,6 @@ export const adminLogin = async (req: Request, res: Response) => {
                { expiresIn: '24h' }
           );
 
-          // Set HttpOnly Cookie
-          // Log action
           await logAction(req, 'ADMIN_LOGIN', `Admin: ${user.name}`);
 
           res.cookie('admin_token', token, {
@@ -113,7 +110,6 @@ export const requestOtp = async (req: Request, res: Response) => {
                return res.status(403).json({ message: 'Anda sudah menggunakan hak pilih anda.' });
           }
 
-          // Redis Rate Limiting (Max 3 requests per hour)
           const limitKey = `otp_limit:${email}`;
           const limitCheck = await checkRateLimit(limitKey, 3, 3600);
 
@@ -123,7 +119,6 @@ export const requestOtp = async (req: Request, res: Response) => {
                });
           }
 
-          // Redis Cooldown (1 request per 60 seconds)
           const cooldownKey = `otp_cooldown:${email}`;
           const cooldownCheck = await checkRateLimit(cooldownKey, 1, 60);
 
@@ -133,7 +128,6 @@ export const requestOtp = async (req: Request, res: Response) => {
                });
           }
 
-          // Generate OTP
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
           const now = new Date();
           const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
@@ -145,12 +139,11 @@ export const requestOtp = async (req: Request, res: Response) => {
                createdAt: now
           });
 
-          // Send Email Async via Queue
           await addOtpEmailJob(email, otp, user.name || undefined);
 
-          // if (!emailSent) {
-          //      console.log(`[DEV ONLY] OTP for ${email}: ${otp}`);
-          // }
+          if (process.env.NODE_ENV !== 'production') {
+               console.log(`[DEV OTP] To: ${email} | Code: ${otp}`);
+          }
 
           await logAction(req, 'OTP_REQUEST', `Email: ${email}`);
           res.json({ message: 'OTP telah dikirim ke email anda' });
@@ -173,7 +166,6 @@ export const verifyOtp = async (req: Request, res: Response) => {
      const { email, otp } = validation.data;
 
      try {
-          // Find valid OTP
           const validOtps = await db.select().from(otpCodes).where(
                and(
                     eq(otpCodes.email, email),
@@ -186,10 +178,8 @@ export const verifyOtp = async (req: Request, res: Response) => {
                return res.status(400).json({ message: 'Kode OTP tidak valid atau sudah kadaluarsa' });
           }
 
-          // Invalidate OTP (delete it)
           await db.delete(otpCodes).where(eq(otpCodes.email, email));
 
-          // Get User - check soft delete
           const userResult = await db.select().from(users).where(and(eq(users.email, email), isNull(users.deletedAt)));
           const user = userResult[0];
 
@@ -197,7 +187,6 @@ export const verifyOtp = async (req: Request, res: Response) => {
                return res.status(404).json({ message: 'User not found' });
           }
 
-          // Generate Token
           const token = jwt.sign(
                { id: user.id, nim: user.nim, role: user.role, name: user.name },
                JWT_SECRET,
@@ -239,7 +228,6 @@ export const resetOtpLimit = async (req: Request, res: Response) => {
      const { email } = validation.data;
 
      try {
-          // Delete all OTP history for this email
           await db.delete(otpCodes).where(eq(otpCodes.email, email));
 
           res.json({ message: `Limit OTP untuk email ${email} berhasil di-reset. User bisa request OTP lagi.` });
@@ -251,14 +239,13 @@ export const resetOtpLimit = async (req: Request, res: Response) => {
 };
 
 export const manualOtpRequest = async (req: Request, res: Response) => {
-     const { identifier } = req.body; // email or nim
+     const { identifier } = req.body;
 
      if (!identifier) {
           return res.status(400).json({ message: 'Identifier (Email or NIM) is required' });
      }
 
      try {
-          // Find user by Email OR NIM
           const userRes = await db.select().from(users).where(
                and(
                     or(eq(users.email, identifier), eq(users.nim, identifier)),
@@ -277,18 +264,15 @@ export const manualOtpRequest = async (req: Request, res: Response) => {
                return res.status(400).json({ message: 'Student does not have an email registered' });
           }
 
-          // Generate OTP
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
-          const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes for manual
+          const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-          // Save OTP
           await db.insert(otpCodes).values({
                email,
                code: otp,
                expiresAt
           });
 
-          // Send Email
           const emailSent = await sendOtpEmail(email, otp, user.name || undefined);
 
           await logAction(req, 'MANUAL_OTP', `Target: ${user.name} (${user.nim})`);
@@ -304,7 +288,6 @@ export const manualOtpRequest = async (req: Request, res: Response) => {
 }
 
 export const me = async (req: Request, res: Response) => {
-     // Req.user populated by middleware
      const userData = (req as any).user;
      if (!userData) return res.status(401).json({ message: 'Not authenticated' });
 

@@ -10,8 +10,16 @@ export const users = pgTable('users', {
      password: text('password'),
      role: text('role').notNull().default('voter'), // 'super_admin', 'panitia', 'voter'
      batch: text('batch'), // Angkatan
+     // Voting Status & Method
      hasVoted: boolean('has_voted').default(false),
      votedAt: timestamp('voted_at', { withTimezone: true }),
+     accessType: text('access_type').default('online'), // 'online' | 'offline' (Eligibility)
+     voteMethod: text('vote_method'), // 'online' | 'offline' (Actual method used)
+
+     // Offline Verification Audit
+     checkedInAt: timestamp('checked_in_at'),
+     checkedInBy: uuid('checked_in_by'), // Operator ID who verified
+
      createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
      deletedAt: timestamp('deleted_at', { withTimezone: true }), // Soft Delete
 });
@@ -92,6 +100,14 @@ export const otpCodes = pgTable('otp_codes', {
      email: text('email').notNull(),
      code: text('code').notNull(),
      expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+export const offlineVoteLogs = pgTable('offline_vote_logs', {
+     id: uuid('id').defaultRandom().primaryKey(),
+     candidateId: uuid('candidate_id').references(() => candidates.id).notNull(),
+     count: integer('count').notNull(),
+     inputBy: uuid('input_by').references(() => users.id), // Panitia who input
      createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 

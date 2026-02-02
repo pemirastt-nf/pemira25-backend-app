@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { db } from '../config/db';
-import { votes, users, candidates } from '../db/schema';
+import { votes, users, candidates, offlineVoteLogs } from '../db/schema';
 import { eq, sql, and, isNull } from 'drizzle-orm';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { Request } from 'express';
@@ -130,19 +130,96 @@ export const getResults = async (req: Request, res: Response) => {
      }
 }
 
-export const manualVote = async (req: Request, res: Response) => {
+export const checkIn = async (req: AuthRequest, res: Response) => {
+     const { nim } = req.body;
+     const operatorId = req.user.id; // Admin/Panitia who checks in
+
+     if (!nim) return res.status(400).json({ message: 'NIM is required' });
+
+     try {
+          const userRes = await db.select().from(users).where(eq(users.nim, String(nim)));
+          if (userRes.length === 0) return res.status(404).json({ message: 'Mahasiswa tidak ditemukan' });
+
+          const user = userRes[0];
+
+          if (user.hasVoted) {
+               return res.status(400).json({
+                    message: 'Mahasiswa SUDAH memilih!',
+                    detail: user.voteMethod === 'online' ? 'Via Online' : 'Via Offline (Check-in)'
+               });
+          }
+
+          // Mark as Offline Voted + Check-in Audit
+          await db.update(users).set({
+               hasVoted: true,
+               voteMethod: 'offline', // Explicitly offline
+               accessType: 'offline', // Update eligibility to strict offline
+               votedAt: new Date(),
+               checkedInAt: new Date(),
+               checkedInBy: operatorId
+          }).where(eq(users.id, user.id));
+
+
+          // Audit is handled by checkedInBy column above
+
+          res.json({
+               message: 'Check-in Berhasil. Hak suara online dicabut.',
+               user: { name: user.name, nim: user.nim }
+          });
+
+     } catch (error) {
+          console.error("Check-in Error", error);
+          res.status(500).json({ message: 'Gagal melakukan check-in' });
+     }
+}
+
+// Enhanced Manual Vote (Tally Input) with Inflation Guard
+export const manualVote = async (req: AuthRequest, res: Response) => {
      const { candidateId, count } = req.body;
      const voteCount = Math.max(1, parseInt(count) || 1);
-
-     // NO NIM required for offline tally (per user request).
-     // This function is purely for "Ballot Box Stuffing" (Tallying paper votes).
-     // Admin authentication is strictly required (handled by middleware).
+     const operatorId = req.user.id;
 
      if (!candidateId) {
           return res.status(400).json({ message: 'Candidate ID is required' });
      }
 
      try {
+          // 1. Get total Offline Voters (The "DPT" for offline) - People who actually checked in
+          const offlineVotersRes = await db.select({ count: sql<number>`count(*)` })
+               .from(users)
+               .where(eq(users.voteMethod, 'offline'));
+
+          const totalOfflineVoters = Number(offlineVotersRes[0].count);
+
+          // 2. Get total Offline Votes already tallied (History)
+          // We count from 'votes' table where source='offline'
+          const talliedRes = await db.select({ count: sql<number>`count(*)` })
+               .from(votes)
+               .where(eq(votes.source, 'offline'));
+
+          const totalTallied = Number(talliedRes[0].count);
+
+          // 3. INFLATION GUARD: Check if New Votes + Existing Tallied > Total Checked-in People
+          if ((totalTallied + voteCount) > totalOfflineVoters) {
+               return res.status(400).json({
+                    message: 'PENGGELEMBUNGAN TERDETEKSI! Jumlah suara melebihi jumlah mahasiswa yang hadir (Check-in).',
+                    detail: {
+                         present: totalOfflineVoters,
+                         tallied: totalTallied,
+                         attempted: voteCount,
+                         excess: (totalTallied + voteCount) - totalOfflineVoters
+                    }
+               });
+          }
+
+          // 4. Proceed: Record Audit Log
+          await db.insert(offlineVoteLogs).values({
+               candidateId: candidateId,
+               count: voteCount,
+               inputBy: operatorId
+          });
+
+          // 5. Proceed: Insert Actual Votes (for calculation)
           const values = Array(voteCount).fill({
                candidateId: candidateId,
                source: 'offline'
@@ -153,7 +230,7 @@ export const manualVote = async (req: Request, res: Response) => {
           cache.del("stats");
           cache.del("results");
 
-          res.json({ message: `${voteCount} Offline vote(s) tallied` });
+          res.json({ message: `${voteCount} Offline vote(s) successfully verified and tallied.` });
      } catch (error: any) {
           console.error('Manual Vote Error:', error);
           res.status(500).json({ message: 'Error recording offline vote' });

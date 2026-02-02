@@ -65,12 +65,13 @@ router.get('/status', authenticateToken as any, getVoteStatus as any);
 router.get('/stats', getStats as any); // Public
 router.get('/results', getResults as any); // Public
 
-import { authenticateAdmin, requireSuperAdmin } from '../middleware/adminAuth';
-import { manualVote, getRecentActivity, deleteVote } from '../controllers/voteController';
+import { authenticateAdmin, requireSuperAdmin, requireOperatorSuara, requireOperatorTPS } from '../middleware/adminAuth';
+import { manualVote, getRecentActivity, deleteVote, checkIn } from '../controllers/voteController';
 
 // Offline/Manual Vote (Admin Only)
-router.post('/offline', authenticateAdmin, manualVote as any);
-router.get('/activity', authenticateAdmin, getRecentActivity as any); // Protected
+router.post('/checkin', authenticateAdmin, requireOperatorTPS, checkIn as any); // Operator Check-in (TPS Task)
+router.post('/offline', authenticateAdmin, requireOperatorSuara, manualVote as any); // Tally Input (Suara Task)
+router.get('/activity', authenticateAdmin, getRecentActivity as any); // Protected (Viewable by any admin? Or limit?) Let's leave for all admins to monitor.
 router.delete('/:id', authenticateAdmin, requireSuperAdmin, deleteVote as any); // Super Admin Only, with 1 min check
 
 export default router;

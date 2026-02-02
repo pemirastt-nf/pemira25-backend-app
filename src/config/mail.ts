@@ -61,6 +61,14 @@ export const formatEmailHtml = (html: string) => {
 
 // Generic send email function with Fallback
 export const sendEmail = async (to: string, subject: string, html: string, attachments: any[] = []) => {
+  // SAFETY: If MAIL_DRY_RUN is true (default in dev if not specified otherwise), don't send real emails.
+  const isDryRun = process.env.MAIL_DRY_RUN === 'true'; // Set this in .env if needed
+
+  if (isDryRun) {
+    console.log(`[MAIL DRY RUN] Would send to: ${to} | Subject: ${subject}`);
+    return true; // Pretend success
+  }
+
   try {
     const finalHtml = formatEmailHtml(html);
     const mailOptions = {

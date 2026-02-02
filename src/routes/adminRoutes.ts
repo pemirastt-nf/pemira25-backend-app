@@ -43,9 +43,9 @@ router.get('/users', async (req, res) => {
 
 /**
  * @swagger
- * /api/admin/users/{id}/role:
+ * /api/admin/users/{id}:
  *   patch:
- *     summary: Update user role
+ *     summary: Update user details (Role, Name, Email, Password)
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -61,37 +61,45 @@ router.get('/users', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - role
  *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
  *               role:
  *                 type: string
- *                 enum: [voter, panitia, super_admin]
+ *                 enum: [voter, panitia, super_admin, operator_tps, operator_suara, operator_chat]
  *               password:
  *                 type: string
  *     responses:
  *       200:
- *         description: User role updated
+ *         description: User updated
  *       400:
- *         description: Invalid role
+ *         description: Invalid input
  *       404:
  *         description: User not found
  */
-router.patch('/users/:id/role', async (req, res) => {
+router.patch('/users/:id', async (req, res) => {
      const { id } = req.params;
-     const { role, password } = req.body; // 'voter', 'panitia', 'super_admin'
+     const { name, email, role, password } = req.body;
 
-     if (!['voter', 'panitia', 'super_admin'].includes(role)) {
+     if (role && !['voter', 'panitia', 'super_admin', 'operator_tps', 'operator_suara', 'operator_chat'].includes(role)) {
           return res.status(400).json({ error: 'Invalid role' });
      }
 
      try {
-          const updateData: any = { role };
+          const updateData: any = {};
+          if (name) updateData.name = name;
+          if (email) updateData.email = email;
+          if (role) updateData.role = role;
 
-          // If password is provided (e.g. promoting a student to admin), hash and set it
           if (password) {
                const salt = await bcrypt.genSalt(10);
                updateData.password = await bcrypt.hash(password, salt);
+          }
+
+          if (Object.keys(updateData).length === 0) {
+               return res.status(400).json({ error: 'No data to update' });
           }
 
           const [updatedUser] = await db.update(users)
@@ -105,11 +113,19 @@ router.patch('/users/:id/role', async (req, res) => {
 
           res.json(updatedUser);
 
-          const actionType = role === 'panitia' ? 'PROMOTE_COMMITTEE' : (role === 'voter' ? 'DEMOTE_COMMITTEE' : 'UPDATE_ROLE');
-          await logAction(req, actionType, `User: ${updatedUser.name} (${updatedUser.nim}), To: ${role}`);
+          // Smart Logging
+          let actionType = 'UPDATE_USER';
+          if (role === 'panitia' || role?.startsWith('operator_')) actionType = 'PROMOTE_COMMITTEE';
+          if (role === 'voter') actionType = 'DEMOTE_COMMITTEE';
+
+          let details = `User: ${updatedUser.name} (${updatedUser.nim})`;
+          if (role) details += `, Roles To: ${role}`;
+          if (name || email) details += `, Info Updated`;
+
+          await logAction(req, actionType, details);
      } catch (error) {
-          console.error('Error updating role:', error);
-          res.status(500).json({ error: 'Failed to update role' });
+          console.error('Error updating user:', error);
+          res.status(500).json({ error: 'Failed to update user' });
      }
 });
 
