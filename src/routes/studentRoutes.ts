@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/db';
-import { users } from '../db/schema';
+import { users, offlineVoteLogs } from '../db/schema';
 import { eq, or, desc, sql, inArray, ilike, and, isNull } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/authMiddleware';
 import { authenticateAdmin, requireSuperAdmin, requireOperatorTPS } from '../middleware/adminAuth';
@@ -409,6 +409,11 @@ router.post('/:id/restore', requireSuperAdmin, async (req: Request, res: Respons
 router.delete('/:id/permanent', requireSuperAdmin, async (req: Request, res: Response) => {
      const { id } = req.params;
      try {
+          // Fix FK Constraint: Nullify inputBy in offlineVoteLogs before hard delete
+          await db.update(offlineVoteLogs)
+               .set({ inputBy: null })
+               .where(eq(offlineVoteLogs.inputBy, id));
+
           await db.delete(users).where(eq(users.id, id));
           res.json({ message: 'Student deleted permanently' });
           await logAction(req, 'PERMANENT_DELETE_STUDENT', `ID: ${id}`);

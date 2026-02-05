@@ -240,12 +240,13 @@ export const manualVote = async (req: AuthRequest, res: Response) => {
           // 3. INFLATION GUARD: Check if New Votes + Existing Tallied > Total Checked-in People
           if ((totalTallied + voteCount) > totalOfflineVoters) {
                return res.status(400).json({
-                    message: 'PENGGELEMBUNGAN TERDETEKSI! Jumlah suara melebihi jumlah mahasiswa yang hadir (Check-in).',
+                    message: 'Jumlah suara melebihi jumlah mahasiswa yang hadir (Check-in).',
                     detail: {
                          present: totalOfflineVoters,
                          tallied: totalTallied,
                          attempted: voteCount,
-                         excess: (totalTallied + voteCount) - totalOfflineVoters
+                         excess: (totalTallied + voteCount) - totalOfflineVoters,
+                         remaining: Math.max(0, totalOfflineVoters - totalTallied)
                     }
                });
           }
