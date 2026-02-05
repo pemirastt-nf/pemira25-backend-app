@@ -257,15 +257,16 @@ router.post('/', async (req: Request, res: Response) => {
  */
 router.get('/', async (req: Request, res: Response) => {
      try {
-          const { search, page = 1, limit = 50, includeDeleted } = req.query;
+          const { search, page = 1, limit = 50, includeDeleted, includeAllRoles, accessType } = req.query;
           const offset = (Number(page) - 1) * Number(limit);
           const shouldIncludeDeleted = includeDeleted === 'true';
+          const shouldIncludeAllRoles = includeAllRoles === 'true';
 
-          // Ideally fetch only non-deleted unless requested
           const allStudents = await db.select().from(users).where(
                and(
-                    eq(users.role, 'voter'),
-                    shouldIncludeDeleted ? undefined : isNull(users.deletedAt)
+                    shouldIncludeAllRoles ? undefined : eq(users.role, 'voter'),
+                    shouldIncludeDeleted ? undefined : isNull(users.deletedAt),
+                    accessType ? eq(users.accessType, String(accessType)) : undefined
                )
           );
 

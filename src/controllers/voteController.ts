@@ -63,7 +63,7 @@ export const getStats = async (req: Request, res: Response) => {
           const cached = cache.get("stats");
           if (cached) return res.json(cached);
 
-          const userCount = await db.select({ count: sql<number>`count(*)` }).from(users).where(isNull(users.deletedAt));
+          const userCount = await db.select({ count: sql<number>`count(*)` }).from(users).where(and(isNull(users.deletedAt), sql`${users.nim} != 'admin'`));
           const voteCount = await db.select({ count: sql<number>`count(*)` }).from(votes);
 
           const onlineCount = await db.select({ count: sql<number>`count(*)` }).from(votes).where(eq(votes.source, 'online'));
@@ -170,6 +170,44 @@ export const checkIn = async (req: AuthRequest, res: Response) => {
      } catch (error) {
           console.error("Check-in Error", error);
           res.status(500).json({ message: 'Gagal melakukan check-in' });
+     }
+}
+
+export const unCheckIn = async (req: AuthRequest, res: Response) => {
+     const { nim } = req.body;
+
+     if (!nim) return res.status(400).json({ message: 'NIM is required' });
+
+     try {
+          const userRes = await db.select().from(users).where(eq(users.nim, String(nim)));
+          if (userRes.length === 0) return res.status(404).json({ message: 'Mahasiswa tidak ditemukan' });
+
+          const user = userRes[0];
+
+          if (!user.hasVoted) {
+               return res.status(400).json({ message: 'Mahasiswa belum di-checkin.' });
+          }
+
+          if (user.voteMethod === 'online') {
+               return res.status(400).json({ message: 'Tidak bisa undo: Mahasiswa sudah voting ONLINE.' });
+          }
+
+          await db.update(users).set({
+               hasVoted: false,
+               voteMethod: null,
+               votedAt: null,
+               checkedInAt: null,
+               checkedInBy: null
+          }).where(eq(users.id, user.id));
+
+          res.json({
+               message: 'Undo Check-in berhasil. Status voting di-reset.',
+               user: { name: user.name, nim: user.nim }
+          });
+
+     } catch (error) {
+          console.error("UnCheck-in Error", error);
+          res.status(500).json({ message: 'Gagal melakukan undo check-in' });
      }
 }
 

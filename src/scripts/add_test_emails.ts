@@ -1,23 +1,39 @@
-
 import { db } from '../config/db';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import bcrypt from 'bcrypt';
 
-async function updateEmails() {
-     console.log('Updating emails...');
+async function seedAdmin() {
+     console.log('Seeding admin...');
 
-     // Update admin
-     await db.update(users)
-          .set({ email: 'hi@oktaa.my.id' })
-          .where(eq(users.nim, 'admin'));
+     const hashedPassword = await bcrypt.hash('oktaganteng12', 10);
 
-     // Update student
-     await db.update(users)
-          .set({ email: '0110224174@student.nurulfikri.ac.id', name: 'Oktaa' })
-          .where(eq(users.nim, '12345'));
+     const adminData = {
+          nim: 'admin',
+          email: 'hi@oktaa.my.id',
+          name: 'Super Admin',
+          password: hashedPassword,
+          role: 'super_admin',
+          batch: null,
+          hasVoted: false,
+          accessType: 'online',
+          voteMethod: null,
+     };
 
-     console.log('Emails updated.');
+     const existing = await db.select().from(users).where(eq(users.nim, 'admin'));
+     if (existing.length === 0) {
+          await db.insert(users).values(adminData);
+          console.log('Admin created.');
+     } else {
+          await db.update(users).set(adminData).where(eq(users.nim, 'admin'));
+          console.log('Admin updated.');
+     }
+
+     console.log('Done.');
      process.exit(0);
 }
 
-updateEmails();
+seedAdmin().catch((err) => {
+     console.error('Seed error:', err);
+     process.exit(1);
+});
