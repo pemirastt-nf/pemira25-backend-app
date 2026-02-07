@@ -39,6 +39,7 @@ app.use(cors({
           const allowedOrigins = [
                'https://pemira.nurulfikri.ac.id',
                'https://admin-pemira-pi.vercel.app',
+               'https://admin-pemira.nurulfikri.ac.id'
           ];
 
           // Dynamic checks
@@ -47,6 +48,7 @@ app.use(cors({
                /^http:\/\/localhost:\d+$/.test(origin) || // Allow any localhost port
                /^http:\/\/10\.0\.3\.\d+:\d+$/.test(origin) || // Allow local IP network
                /^https:\/\/.*\.vercel\.app$/.test(origin) || // Allow any Vercel app
+               /^https:\/\/.*\.nurulfikri\.ac\.id$/.test(origin) || // Allow any nurulfikri.ac.id subdomain
                /^https:\/\/.*\.oktaa\.my\.id$/.test(origin); // Allow any oktaa.my.id subdomain
 
           if (isAllowed) {
