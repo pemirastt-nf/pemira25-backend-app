@@ -122,6 +122,7 @@ const io = new Server(server, {
                     /^http:\/\/localhost:\d+$/.test(origin) ||
                     /^http:\/\/10\.0\.3\.\d+:\d+$/.test(origin) ||
                     /^https:\/\/.*\.vercel\.app$/.test(origin) ||
+                    /^https:\/\/.*\.nurulfikri\.ac\.id$/.test(origin) ||
                     /^https:\/\/.*\.oktaa\.my\.id$/.test(origin);
 
                if (isAllowed) {
