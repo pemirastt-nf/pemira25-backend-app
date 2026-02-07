@@ -144,7 +144,7 @@ io.use(socketAuth);
 // Initialize Chat Handler
 requestChatHandler(io);
 
-server.listen(PORT, () => {
+server.listen(Number(PORT), '0.0.0.0', () => {
      console.log(`Server running on port ${PORT}`);
 
      // Initialize Worker
