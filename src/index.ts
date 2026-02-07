@@ -115,6 +115,7 @@ const io = new Server(server, {
                const allowedOrigins = [
                     'https://pemira.nurulfikri.ac.id',
                     'https://admin-pemira-pi.vercel.app',
+                    'https://admin-pemira.nurulfikri.ac.id'
                ];
 
                const isAllowed =
