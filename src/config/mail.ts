@@ -72,7 +72,7 @@ export const sendEmail = async (to: string, subject: string, html: string, attac
   try {
     const finalHtml = formatEmailHtml(html);
     const mailOptions = {
-      from: "PEMIRA " + (process.env.SMTP_FROM || '"PEMIRA" <no-reply@pemira.sttnf.ac.id>'),
+      from: process.env.SMTP_FROM || `"PEMIRA STTNF" <${process.env.SMTP_USER || 'no-reply@pemira.nurulfikri.ac.id'}>`,
       to,
       subject,
       html: finalHtml,
@@ -217,7 +217,7 @@ export const wrapEmailBody = (content: string, useCid = false) => {
                           color:#94a3b8;
                         "
                       >
-                        &copy; ${new Date().getFullYear()} Panitia PEMIRA IM STTNF. All rights reserved.
+                        &copy; ${new Date().getFullYear()} PEMIRA IM STTNF. All rights reserved.
                       </p>
                     </td>
                   </tr>
