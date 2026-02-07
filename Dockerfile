@@ -18,9 +18,8 @@ COPY package*.json ./
 RUN npm install --production
 
 COPY --from=builder /app/dist ./dist
-# If you have static assets or env files needed, copy them here too
-# COPY .env .env (Better to use Dockploy Env Vars)
 
-EXPOSE 5000
+EXPOSE 8000
+ENV PORT 8000
 
 CMD ["npm", "start"]
