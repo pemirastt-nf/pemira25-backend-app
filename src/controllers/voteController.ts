@@ -19,8 +19,10 @@ export const vote = async (req: AuthRequest, res: Response) => {
 
      try {
           await db.transaction(async (tx) => {
-               const userCheck = await tx.select({ hasVoted: users.hasVoted }).from(users).where(eq(users.id, userId));
-               if (userCheck[0].hasVoted) {
+               // Lock the user row to prevent race conditions (Double Voting)
+               const userCheck = await tx.execute(sql`SELECT has_voted FROM users WHERE id = ${userId} FOR UPDATE`);
+
+               if (userCheck.rows[0].has_voted) {
                     throw new Error('User has already voted');
                }
 
@@ -137,34 +139,37 @@ export const checkIn = async (req: AuthRequest, res: Response) => {
      if (!nim) return res.status(400).json({ message: 'NIM is required' });
 
      try {
-          const userRes = await db.select().from(users).where(eq(users.nim, String(nim)));
-          if (userRes.length === 0) return res.status(404).json({ message: 'Mahasiswa tidak ditemukan' });
+          await db.transaction(async (tx) => {
+               // Lock user row
+               const userRes = await tx.execute(sql`SELECT * FROM users WHERE nim = ${String(nim)} FOR UPDATE`);
 
-          const user = userRes[0];
+               if (userRes.rowCount === 0) {
+                    throw new Error('Mahasiswa tidak ditemukan');
+               }
 
-          if (user.hasVoted) {
-               return res.status(400).json({
-                    message: 'Mahasiswa SUDAH memilih!',
-                    detail: user.voteMethod === 'online' ? 'Via Online' : 'Via Offline (Check-in)'
-               });
-          }
+               const user = userRes.rows[0];
 
-          // Mark as Offline Voted + Check-in Audit
-          await db.update(users).set({
-               hasVoted: true,
-               voteMethod: 'offline', // Explicitly offline
-               accessType: 'offline', // Update eligibility to strict offline
-               votedAt: new Date(),
-               checkedInAt: new Date(),
-               checkedInBy: operatorId
-          }).where(eq(users.id, user.id));
+               if (user.has_voted) {
+                    throw new Error(`Mahasiswa SUDAH memilih! (${user.vote_method === 'online' ? 'Via Online' : 'Via Offline'})`);
+               }
 
+               // Mark as Offline Voted + Check-in Audit
+               await tx.update(users).set({
+                    hasVoted: true,
+                    voteMethod: 'offline', // Explicitly offline
+                    accessType: 'offline', // Update eligibility to strict offline
+                    votedAt: new Date(),
+                    checkedInAt: new Date(),
+                    checkedInBy: operatorId
+               }).where(eq(users.id, String(user.id)));
+          });
 
-          // Audit is handled by checkedInBy column above
+          // Fetch user name for response (outside tx is fine)
+          const updatedUser = await db.select({ name: users.name, nim: users.nim }).from(users).where(eq(users.nim, String(nim)));
 
           res.json({
                message: 'Check-in Berhasil. Hak suara online dicabut.',
-               user: { name: user.name, nim: user.nim }
+               user: updatedUser[0]
           });
 
      } catch (error) {
