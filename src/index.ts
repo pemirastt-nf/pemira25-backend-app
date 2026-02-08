@@ -124,7 +124,6 @@ import { initEmailWorker } from './worker/emailWorker';
 
 // --- Socket.IO Setup ---
 import { createAdapter } from '@socket.io/redis-adapter';
-import { redisConnection } from './config/redis';
 
 // Duplicate connection for pub/sub as required by adapter
 const pubClient = redisConnection.duplicate();
