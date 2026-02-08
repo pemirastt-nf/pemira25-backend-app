@@ -68,9 +68,26 @@ export const requestChatHandler = (io: Server) => {
                     if (!sessionId && !data.studentId) {
                          // Only create new guest session if guestInfo is provided
                          if (data.guestInfo?.name && data.guestInfo?.email) {
+                              const email = data.guestInfo.email.trim().toLowerCase();
+
+                              // 1. Validate Domain
+                              if (!email.endsWith('@student.nurulfikri.ac.id')) {
+                                   return socket.emit('error', 'Email harus menggunakan domain @student.nurulfikri.ac.id');
+                              }
+
+                              // 2. Validate User Exists in DB
+                              const userExists = await db.query.users.findFirst({
+                                   columns: { id: true },
+                                   where: (users, { eq }) => eq(users.email, email)
+                              });
+
+                              if (!userExists) {
+                                   return socket.emit('error', 'Email tidak terdaftar sebagai mahasiswa aktif.');
+                              }
+
                               const [newSession] = await db.insert(chatSessions).values({
                                    guestName: data.guestInfo.name,
-                                   guestEmail: data.guestInfo.email,
+                                   guestEmail: email,
                                    status: 'open',
                                    ipAddress: socket.handshake.address
                               }).returning();
