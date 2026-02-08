@@ -44,6 +44,17 @@ export const requestChatHandler = (io: Server) => {
                          if (existingSession) {
                               sessionId = existingSession.id;
                          } else {
+                              // Verify student exists before creating session (Prevent FK Error)
+                              const studentExists = await db.query.users.findFirst({
+                                   columns: { id: true },
+                                   where: (users, { eq }) => eq(users.id, studentId)
+                              });
+
+                              if (!studentExists) {
+                                   console.error(`Attempt to create session for non-existent student: ${studentId}`);
+                                   return socket.emit('error', 'User not found. Please re-login.');
+                              }
+
                               const [newSession] = await db.insert(chatSessions).values({
                                    studentId: data.studentId,
                                    status: 'open',

@@ -19,9 +19,19 @@ export const socketAuth = async (socket: AuthenticatedSocket, next: (err?: any) 
 
           if (token) {
                try {
-                    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+                    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+                    // Verify user exists in DB to prevent FK errors
+                    // const userExists = await db.query.users.findFirst({
+                    //      where: (users, { eq }) => eq(users.id, decoded.id)
+                    // });
+
+                    // Optimization: We don't need to fetch full user, just ensure ID is valid if we want strictness.
+                    // But for performance, we might skip this. However, to fix the specific error:
+
                     socket.user = decoded;
                } catch (err) {
+                    console.error("Socket token invalid:", err);
                     // Invalid token - treat as guest
                }
           }
