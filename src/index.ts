@@ -28,13 +28,10 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// Trust Vercel Proxy (Required for secure cookies)
 app.set('trust proxy', 1);
 
-// Middleware
 app.use(cors({
      origin: (origin, callback) => {
-          // Allow requests with no origin (like mobile apps or curl requests)
           if (!origin) return callback(null, true);
 
           const allowedOrigins = [
@@ -43,14 +40,13 @@ app.use(cors({
                'https://admin-pemira.nurulfikri.ac.id'
           ];
 
-          // Dynamic checks
           const isAllowed =
                allowedOrigins.includes(origin) ||
-               /^http:\/\/localhost:\d+$/.test(origin) || // Allow any localhost port
-               /^http:\/\/10\.0\.3\.\d+:\d+$/.test(origin) || // Allow local IP network
-               /^https:\/\/.*\.vercel\.app$/.test(origin) || // Allow any Vercel app
-               /^https:\/\/.*\.nurulfikri\.ac\.id$/.test(origin) || // Allow any nurulfikri.ac.id subdomain
-               /^https:\/\/.*\.oktaa\.my\.id$/.test(origin); // Allow any oktaa.my.id subdomain
+               /^http:\/\/localhost:\d+$/.test(origin) ||
+               /^http:\/\/10\.0\.3\.\d+:\d+$/.test(origin) ||
+               /^https:\/\/.*\.vercel\.app$/.test(origin) ||
+               /^https:\/\/.*\.nurulfikri\.ac\.id$/.test(origin) ||
+               /^https:\/\/.*\.oktaa\.my\.id$/.test(origin);
 
           if (isAllowed) {
                callback(null, true);
@@ -110,8 +106,6 @@ app.get('/api/health', async (req, res) => {
      }
 });
 
-// Bridge Socket.IO for Vercel Serverless
-// Since Vercel uses the exported 'app' and not our 'server', we must manually pass socket requests
 app.all('/socket.io/*?', (req, res) => {
      // @ts-ignore: io.engine types might expect raw http headers
      io.engine.handleRequest(req, res);
