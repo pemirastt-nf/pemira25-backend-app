@@ -19,6 +19,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { socketAuth } from './middleware/socketSecurity';
 import { requestChatHandler } from './socket/chatHandler';
+import { redisConnection } from './config/redis';
 
 // Load env
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -80,11 +81,32 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/broadcast', broadcastRoutes);
 app.get('/api/health', async (req, res) => {
      try {
+          // Check database
           await db.execute(sql`SELECT 1`);
-          res.json({ status: 'ok', timestamp: new Date(), dbStatus: 'ok' });
+
+          // Check Redis
+          let redisStatus = 'ok';
+          try {
+               await redisConnection.ping();
+          } catch (redisError) {
+               console.error('Redis health check failed:', redisError);
+               redisStatus = 'disconnected';
+          }
+
+          res.json({
+               status: 'ok',
+               timestamp: new Date(),
+               dbStatus: 'ok',
+               redisStatus
+          });
      } catch (error) {
           console.error('Health check failed:', error);
-          res.status(500).json({ status: 'error', timestamp: new Date(), dbStatus: 'disconnected' });
+          res.status(500).json({
+               status: 'error',
+               timestamp: new Date(),
+               dbStatus: 'disconnected',
+               redisStatus: 'unknown'
+          });
      }
 });
 
